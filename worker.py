@@ -1,4 +1,7 @@
+from cascade import Cas
 import datetime
+
+brother = Cas()
 
 class Mapped(object):
     def __init__(self):
@@ -21,15 +24,19 @@ class Mapped(object):
     def process(self, selfid, access, q=None):
         #temp = {'1': 'insert', '2': 'update', '3': 'delete'}
         if access == 'author':
-            print 'Hello Author,\n'
-            print '1. Submit a Manuscript\n2. Update Address\n3. Update Affiliation\n4. Retract a Manuscript\n5. Self'
+            #print 'Hello Author,\n'
+            print '1. Submit a Manuscript\n2. Retract a Manuscript\n5. Self'
             q = raw_input("> ")
             if q not in ['1', '2', '3', '4', '5']:
                 print '---- NOT A VALID RESPONSE ---'
                 return None, None
             if q == '1':
-                return self.command_builder('Manuscript', 'insert')
-            if q == '4':
+                a, b = self.command_builder('Manuscript', 'insert')
+                brother.cascade_exec(a, b)
+                a, b = self.command_builder('Master_Manu_Auth', 'insert_full', colnames=['Author_Aid','Manuscript_Mid', 'AuthorOrderNo'], retcols = [selfid, b['Mid'], '1'])
+                brother.cascade_exec(a, b)
+                return None, None
+            if q == '2':
                 return self.command_builder('Manuscript', 'delete', primeKeys=1)
             if q == '5' or q == 'self':
                 return self.command_builder('Author', 'select_special', retcols=[selfid])
@@ -37,25 +44,30 @@ class Mapped(object):
                 return
 
         elif access == 'reviewer':
-            print 'Hello Reviewer,\n'
-            print '1. Add a Review \n2. Get Pending Review ID'
+
+            #print 'Hello Reviewer,\n'
+            print '1. Add a Review \n2. Get All Reviews Assigned'
             q = raw_input("> ")
             if q == '1':
                 return self.command_builder('Master_Manu_Revw', 'update', ['ratingAppropriateness','ratingClarity','ratingMethodology','ratingContribution','finalRecommendation','feedbackDate'], primeKeys=2)
+            if q == '2':
+                return self.command_builder('Master_Manu_Revw', 'select_special', retcols=[selfid])
 
         else:
-            print 'Hello Editor'
-            print '1. Assign Reveiwers \n2. Change Manuscript Status\n3. Add Manuscript to Issue\n4. See Manuscripts by an Author'
+            #print 'Hello Editor'
+            print '1. Assign Reveiwers \n2. Change Manuscript Status\n3. Add Manuscript to Issue\n4. See Manuscripts by an Author\n5. Publish Issue'
             q = raw_input("> ")
-            if q not in ['1', '2', '3', '4']:
-                print '---- NOT A VALID RESPONSE ---'
-                return None, None
             if q == '1':
                 return self.command_builder('Master_Manu_Revw', 'insert', primeKeys=2)
             if q == '2':
                 return self.command_builder('Manuscript', 'update', ['Status'], primeKeys=1)
             if q == '4':
                 return self.command_builder('Master_Manu_Auth', 'select', colnames=['AuthorAid'], retcols=['*'])
+            if q == '5':
+                r = raw_input('Enter Issue_Id to publish > ')
+                return 'update Manuscript set status=Published where Manuscript.Mid and (Master_Manu_Issue.Manuscript_Mid=Manuscript.Mid and Master_Manu_Issue.Issue_Issueid='+r+');', {"some":"value"}
+            print '---- NOT A VALID RESPONSE ---'
+            return None, None
 
 
 
@@ -127,7 +139,7 @@ class Mapped(object):
 
             some_head = 'DELETE FROM ' + tabname + ' WHERE '
             some_head += tempkey
-            print data
+            #print data
 
             #return some_head, data
 
@@ -159,10 +171,35 @@ class Mapped(object):
             #return some_head, data
 
         elif act == 'select_special':
-            print 'Okay! this is who you are'
+            #print 'Okay! this is who you are'
             some_head = 'SELECT * FROM '+ tabname + ' WHERE ' + self.tab2col[tabname][0] + ' = ' + retcols[0]
+            if tabname == 'Master_Manu_Revw':
+                some_head = 'SELECT * FROM '+ tabname + ' WHERE ' + self.tab2col[tabname][1] + ' = ' + retcols[0]
             data = {'some':'values'}
             #return some_head, data
+
+        elif act == 'insert_full':
+            some_head = 'INSERT INTO ' + tabname + ' '
+            temp = ''
+            tempval = ''
+            for e in colnames:
+                temp += e + ', '
+                tempval += '%(' + e + ')s, '
+            temp = temp[:-2]
+            tempval = tempval[:-2]
+
+            some_head += '(' + temp + ')'
+            some_head += ' VALUES '
+            some_head += '(' + tempval + ')'
+
+            #print some_head
+
+            data = {}
+            for i in range(len(retcols)):
+                data[colnames[i]] = retcols[i]
+            #print some_head, data
+            return some_head, data
+
 
         # Default Values
 
@@ -171,6 +208,9 @@ class Mapped(object):
 
         if 'Filepath' in data:
             data['Filepath'] = 'drive/dir/path/script/' + data['Mid'] + '.pdf'
+
+        if 'Status' in data and data['Status'] == '':
+            data['Status'] = 'Submitted'
 
         curr_dates = ['feedbackDate', 'dateReceived']
         for e in curr_dates:
@@ -182,5 +222,14 @@ class Mapped(object):
             if e in data and data[e] == '':
                 data[e] = 0
 
-        print data
+        print some_head, data
         return some_head, data
+
+    def onceprint(self, selfid, access):
+        if access == 'author':
+            return self.command_builder('Author', 'select_special', retcols=[selfid])
+        if access == 'editor':
+            return self.command_builder('Editor', 'select_special', retcols=[selfid])
+        if access == 'reviewer':
+            return self.command_builder('Reviewer', 'select_special', retcols=[selfid])
+        return None, None

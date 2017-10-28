@@ -50,11 +50,24 @@ while james != 'quit':
         james = entered
         if entered.split('_') in people.users:
             login = True
+            superflag = True
             selfid = entered.split('_')[0]
             access = people.find(entered.split('_')[0])
     else:
         # comes here if only logged in
         print 'What would you like to do?'
+        if superflag:
+            superflag = False
+            a, b = drive.onceprint(selfid, access)
+            cursor.execute((a), b)
+            for e in cursor:
+                if access == 'author':
+                    print 'Hello ',  e[3], e[4]
+                if access == 'editor':
+                    print 'Hello ', e[1], e[2]
+                if access == 'reviewer':
+                    print 'Hello ', e[1], e[2], ' at ', e[3]
+            cnx.commit()
         a, b = drive.process(selfid, access)
         if a and b:
             cursor.execute((a), b)
@@ -63,7 +76,7 @@ while james != 'quit':
             cnx.commit()
             print '...executed!'
         else:
-            print '...check source code. Some error'
+            print '... Cascade Executed!'
         james = raw_input('> ')
 
 #cursor.execute(add_zip, data)
